@@ -7,23 +7,21 @@ library(tidyverse)
 ```{r}
 simulation <- function() {
   action <- function() {
-    empty <- is.na(slots[focused_feature])
-    if (empty) {
-      visible <- revealed[focused_feature]
-      if (visible) {
-        long <- monster[focused_feature] == 'long'
-        if (long) {
+    if (is.na(slots[focused_feature])) { # is the slot with the FF still empty?
+      if (revealed[focused_feature]) { # is the FF already visible?
+        if (monster[focused_feature] == 'long') { # is the FF long?
+          # then place this monster in the slot of the FF:
           slots[[focused_feature]] <<- monster
         }
-      } else {
-          ## query the focused_feature => reveal it
-          revealed[focused_feature] <<- TRUE
-          query_counter <<- query_counter + 1
-          action()
+      } else { # if FF is still covered:
+        ## query the focused_feature => reveal it
+        revealed[focused_feature] <<- TRUE
+        queries <<- queries + 1
+        action()
       }
     }
   }
-  query_counter <- 0
+  queries <- 0
   slots <- list(A = NA, B = NA)
   slots_need_to_be_filled <- TRUE
   while (slots_need_to_be_filled) {
@@ -37,7 +35,7 @@ simulation <- function() {
     action()
     slots_need_to_be_filled <- is.na(slots$A) || is.na(slots$B)
   }
-  query_counter
+  queries
 }
 simulation()
 ```
