@@ -1,0 +1,45 @@
+---
+title: "arg2"
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+```
+```{r functions}
+action <- function() {
+  empty <- is.na(slots[focused_feature])
+  if (empty) {
+    visible <- revealed[focused_feature]
+    if (visible) {
+      long <- monster[focused_feature] == 'long'
+      if (long) {
+        slots[[focused_feature]] <<- monster
+      }
+    } else {
+        ## query the focused_feature => reveal it
+        revealed[focused_feature] <<- TRUE
+        query_counter <<- query_counter + 1
+        action()
+    }
+  }
+}
+```
+```{r}
+simulation <- function() {
+  query_counter <- 0
+  slots <- list(A = NA, B = NA)
+  monster <- c(A = 'long', B = 'short')
+  revealed <- c(A = FALSE, B = FALSE)
+  focused_feature <- sample(c('A', 'B'), 1)
+  action()
+  if (focused_feature == 'A') {
+    focused_feature <- 'B'
+  } else {
+    focused_feature <- 'A'
+  }
+  action()
+  slots
+  query_counter
+}
+```
+
