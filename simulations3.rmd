@@ -5,15 +5,47 @@ title: "arg2"
 library(tidyverse)
 library(memoise)
 ```
-
-```{r}
+```{r general functions}
 normalize <- function(x) {
   if (sum(x)==0) x else x/sum(x)
 }
+```
+```{r functions}
+agent_choose <- function(actions) {
+  stopifnot(any(actions > 0))
+  probabilities <- normalize(unlist(actions))
+  sample(names(actions), 1, prob = probabilities) %>% as.character
+}
+agent_update_actions <- function(actions, state) {
+  actions_excel <- lookup_state_in_excel_file_memoized(state)
+  actions_excel <- actions_excel %>% as.list
+  actions[actions_excel == 'ok'] <- actions[actions_excel == 'ok'] * .1
+  actions[actions_excel == 'E'] <- actions[actions_excel == 'E'] * PARAMETER_E
+  actions[actions_excel == 'r'] <- actions[actions_excel == 'r'] * .1
+  actions[actions_excel == 'RR'] <- actions[actions_excel == 'RR'] * .1
+  actions[actions_excel == '1/2r'] <- actions[actions_excel == '1/2r'] * .1
+  actions[actions_excel == 'P'] <- actions[actions_excel == 'P'] * .1
+  actions
+}
+lookup_state_in_excel_file <- function(state) {
+  ## compress state into single string representation
+  state_chr <- state %>% state_wider %>% unlist %>% as.character %>% paste0(collapse = ' ')
+  ## load excel table with states and actions
+  xlsx <- readxl::read_excel('states and actions.xlsx', skip = 2)
+  all_states_chr <- xlsx %>% select(rare:featB) %>% 
+    apply(1, paste0, collapse = ' ')
+  if (sum(state_chr == all_states_chr) != 1) browser()
+  stopifnot(sum(state_chr == all_states_chr) == 1)
+  ## identify actions that correspond to state
+  actions <- xlsx[state_chr == all_states_chr,] %>% select(new:assB)
+  stopifnot(nrow(actions) == 1)
+  stopifnot(isTRUE(all.equal(colnames(actions), c("new", "qA", "qB", "assA", "assB"))))
+  actions
+}
+lookup_state_in_excel_file_memoized <- memoise::memoize(lookup_state_in_excel_file)
 state_wider <- function(state) {
   state %>% pivot_wider(names_from = feature, values_from = c(slot, card))
 }
-
 simulation <- function() {
   disable_invalid_actions <- function() {
     ## initialize action space
@@ -132,41 +164,7 @@ simulation <- function() {
   history
 }
 ```
-```{r}
-lookup_state_in_excel_file <- function(state) {
-  ## compress state into single string representation
-  state_chr <- state %>% state_wider %>% unlist %>% as.character %>% paste0(collapse = ' ')
-  ## load excel table with states and actions
-  xlsx <- readxl::read_excel('states and actions.xlsx', skip = 2)
-  all_states_chr <- xlsx %>% select(rare:featB) %>% 
-    apply(1, paste0, collapse = ' ')
-  if (sum(state_chr == all_states_chr) != 1) browser()
-  stopifnot(sum(state_chr == all_states_chr) == 1)
-  ## identify actions that correspond to state
-  actions <- xlsx[state_chr == all_states_chr,] %>% select(new:assB)
-  stopifnot(nrow(actions) == 1)
-  stopifnot(isTRUE(all.equal(colnames(actions), c("new", "qA", "qB", "assA", "assB"))))
-  actions
-}
-lookup_state_in_excel_file_memoized <- memoise::memoize(lookup_state_in_excel_file)
-agent_choose <- function(actions) {
-  stopifnot(any(actions > 0))
-  probs <- normalize(unlist(actions))
-  sample(names(actions), 1, prob = probs) %>% as.character
-}
-agent_update_actions <- function(actions, state) {
-  actions_excel <- lookup_state_in_excel_file_memoized(state)
-  actions_excel <- actions_excel %>% as.list
-  actions[actions_excel == 'ok'] <- actions[actions_excel == 'ok'] * .1
-  actions[actions_excel == 'E'] <- actions[actions_excel == 'E'] * PARAMETER_E
-  actions[actions_excel == 'r'] <- actions[actions_excel == 'r'] * .1
-  actions[actions_excel == 'RR'] <- actions[actions_excel == 'RR'] * .1
-  actions[actions_excel == '1/2r'] <- actions[actions_excel == '1/2r'] * .1
-  actions[actions_excel == 'P'] <- actions[actions_excel == 'P'] * .1
-  actions
-}
-```
-```{r}
+```{r run}
 RARE_FEATURE <- 'A'
 PARAMETER_E <- .7
 set.seed(123)
