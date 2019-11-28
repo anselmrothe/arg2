@@ -3,9 +3,17 @@ title: "arg2"
 ---
 ```{r setup, include=FALSE}
 library(tidyverse)
+library(memoise)
 ```
 
 ```{r}
+normalize <- function(x) {
+  if (sum(x)==0) x else x/sum(x)
+}
+state_wider <- function(state) {
+  state %>% pivot_wider(names_from = feature, values_from = c(slot, card))
+}
+
 simulation <- function() {
   disable_invalid_actions <- function() {
     ## initialize action space
@@ -39,12 +47,6 @@ simulation <- function() {
     return(actions)
   }
   
-  agent_choose_action <- function(strategy) {
-    if (strategy == 'random') {
-      sample(colnames(actions), 1, prob = unlist(actions)) %>% as.character
-    }
-  }
-  
   game_update_state <- function(chosen_action) {
     ## this function works with side effects / global assignments / <<-
     if (chosen_action == 'new') {
@@ -68,46 +70,43 @@ simulation <- function() {
   update_history <- function() {
     history_row <- bind_cols(
       i = i, 
-      state %>% pivot_wider(names_from = feature, values_from = c(slot, card)), 
+      state %>% state_wider, 
       actions,
       chosen_action = chosen_action, 
       card %>% pivot_wider(names_from = feature, values_from = value))
     history <<- bind_rows(history, history_row)
   }
   
-  RARE_FEATURE <- 'A'
-  
   state <- tribble(
     ~rare, ~feature, ~slot, ~card,
-    RARE_FEATURE, 'A', '[ ]', 'x',
-    RARE_FEATURE, 'B', '[ ]', 'x'
+    RARE_FEATURE, 'A', '[   ]', 'x',
+    RARE_FEATURE, 'B', '[   ]', 'x'
   )
   
   population <- tribble(
-      ~card, ~feature, ~value,
-      1,  'A', "long",
-      1,  'B', "long",
-      2,  'A', "long",
-      2,  'B', "short",
-      3,  'A', "short",
-      3,  'B', "long",
-      4,  'A', "short",
-      4,  'B', "long",
-      5,  'A', "short",
-      5,  'B', "long",
-      6,  'A', "short",
-      6,  'B', "long",
-      7,  'A', "short",
-      7,  'B', "short",
-      8,  'A', "short",
-      8,  'B', "short",
-      9,  'A', "short",
-      9,  'B', "short",
-      10,  'A', "short",
-      10,  'B', "short"
+    ~card, ~feature, ~value,
+    1,  'A', "long",
+    1,  'B', "long",
+    2,  'A', "long",
+    2,  'B', "short",
+    3,  'A', "short",
+    3,  'B', "long",
+    4,  'A', "short",
+    4,  'B', "long",
+    5,  'A', "short",
+    5,  'B', "long",
+    6,  'A', "short",
+    6,  'B', "long",
+    7,  'A', "short",
+    7,  'B', "short",
+    8,  'A', "short",
+    8,  'B', "short",
+    9,  'A', "short",
+    9,  'B', "short",
+    10,  'A', "short",
+    10,  'B', "short"
   )
   
-  set.seed(123)
   card_sequence <- sample(1:max(population$card))
   card_sequence_index <- 1
   
@@ -118,7 +117,8 @@ simulation <- function() {
   ## play game
   for (i in 1:100) {
     actions <- disable_invalid_actions()
-    chosen_action <- agent_choose_action(strategy = 'random')
+    actions <- agent_update_actions(actions, state)
+    chosen_action <- agent_choose(actions)
     game_update_state(chosen_action)
     
     update_history()
@@ -132,8 +132,44 @@ simulation <- function() {
   history
 }
 ```
-
 ```{r}
+lookup_state_in_excel_file <- function(state) {
+  ## compress state into single string representation
+  state_chr <- state %>% state_wider %>% unlist %>% as.character %>% paste0(collapse = ' ')
+  ## load excel table with states and actions
+  xlsx <- readxl::read_excel('states and actions.xlsx', skip = 2)
+  all_states_chr <- xlsx %>% select(rare:featB) %>% 
+    apply(1, paste0, collapse = ' ')
+  if (sum(state_chr == all_states_chr) != 1) browser()
+  stopifnot(sum(state_chr == all_states_chr) == 1)
+  ## identify actions that correspond to state
+  actions <- xlsx[state_chr == all_states_chr,] %>% select(new:assB)
+  stopifnot(nrow(actions) == 1)
+  stopifnot(isTRUE(all.equal(colnames(actions), c("new", "qA", "qB", "assA", "assB"))))
+  actions
+}
+lookup_state_in_excel_file_memoized <- memoise::memoize(lookup_state_in_excel_file)
+agent_choose <- function(actions) {
+  stopifnot(any(actions > 0))
+  probs <- normalize(unlist(actions))
+  sample(names(actions), 1, prob = probs) %>% as.character
+}
+agent_update_actions <- function(actions, state) {
+  actions_excel <- lookup_state_in_excel_file_memoized(state)
+  actions_excel <- actions_excel %>% as.list
+  actions[actions_excel == 'ok'] <- actions[actions_excel == 'ok'] * .1
+  actions[actions_excel == 'E'] <- actions[actions_excel == 'E'] * PARAMETER_E
+  actions[actions_excel == 'r'] <- actions[actions_excel == 'r'] * .1
+  actions[actions_excel == 'RR'] <- actions[actions_excel == 'RR'] * .1
+  actions[actions_excel == '1/2r'] <- actions[actions_excel == '1/2r'] * .1
+  actions[actions_excel == 'P'] <- actions[actions_excel == 'P'] * .1
+  actions
+}
+```
+```{r}
+RARE_FEATURE <- 'A'
+PARAMETER_E <- .7
+set.seed(123)
 history <- simulation()
 history
 ```
