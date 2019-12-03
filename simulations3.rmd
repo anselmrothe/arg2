@@ -19,12 +19,21 @@ agent_choose <- function(actions) {
 agent_update_actions <- function(actions, state) {
   actions_excel <- lookup_state_in_excel_file_memoized(state)
   actions_excel <- actions_excel %>% as.list
-  actions[actions_excel == 'ok'] <- actions[actions_excel == 'ok'] * .1
-  actions[actions_excel == 'E'] <- actions[actions_excel == 'E'] * PARAMETER_E
-  actions[actions_excel == 'r'] <- actions[actions_excel == 'r'] * .1
-  actions[actions_excel == 'RR'] <- actions[actions_excel == 'RR'] * .1
-  actions[actions_excel == '1/2r'] <- actions[actions_excel == '1/2r'] * .1
-  actions[actions_excel == 'P'] <- actions[actions_excel == 'P'] * .1
+  prob_ok <- (PARAMETER$ok / sum(actions_excel == 'ok'))
+  prob_error <- ((1-PARAMETER$ok) / sum(!actions_excel %in% c('ok', 'x')))
+  actions[actions_excel == 'ok'] <- actions[actions_excel == 'ok'] * prob_ok
+  actions[actions_excel == 'E'] <- actions[actions_excel == 'E'] * prob_error
+  actions[actions_excel == 'r'] <- actions[actions_excel == 'r'] * prob_error
+  actions[actions_excel == 'RR'] <- actions[actions_excel == 'RR'] * prob_error
+  actions[actions_excel == '1/2r'] <- actions[actions_excel == '1/2r'] * prob_error
+  actions[actions_excel == 'P'] <- actions[actions_excel == 'P'] * prob_error
+  # if(!sum(actions) > .99) browser()
+  if(!sum(actions) < 1.01) browser()
+  # actions[actions_excel == 'E'] <- actions[actions_excel == 'E'] * PARAMETER$E
+  # actions[actions_excel == 'r'] <- actions[actions_excel == 'r'] * PARAMETER$r
+  # actions[actions_excel == 'RR'] <- actions[actions_excel == 'RR'] * PARAMETER$RR
+  # actions[actions_excel == '1/2r'] <- actions[actions_excel == '1/2r'] * (PARAMETER$r/2)
+  # actions[actions_excel == 'P'] <- actions[actions_excel == 'P'] * PARAMETER$P
   actions
 }
 lookup_state_in_excel_file <- function(state) {
@@ -115,29 +124,47 @@ simulation <- function() {
     RARE_FEATURE, 'B', '[   ]', 'x'
   )
   
-  population <- tribble(
-    ~card, ~feature, ~value,
-    1,  'A', "long",
-    1,  'B', "long",
-    2,  'A', "long",
-    2,  'B', "short",
-    3,  'A', "short",
-    3,  'B', "long",
-    4,  'A', "short",
-    4,  'B', "long",
-    5,  'A', "short",
-    5,  'B', "long",
-    6,  'A', "short",
-    6,  'B', "long",
-    7,  'A', "short",
-    7,  'B', "short",
-    8,  'A', "short",
-    8,  'B', "short",
-    9,  'A', "short",
-    9,  'B', "short",
-    10,  'A', "short",
-    10,  'B', "short"
-  )
+  # population <- tribble(
+  #   ~card, ~feature, ~value,
+  #   1,  'A', "long",
+  #   1,  'B', "long",
+  #   2,  'A', "long",
+  #   2,  'B', "short",
+  #   3,  'A', "short",
+  #   3,  'B', "long",
+  #   4,  'A', "short",
+  #   4,  'B', "long",
+  #   5,  'A', "short",
+  #   5,  'B', "long",
+  #   6,  'A', "short",
+  #   6,  'B', "long",
+  #   7,  'A', "short",
+  #   7,  'B', "short",
+  #   8,  'A', "short",
+  #   8,  'B', "short",
+  #   9,  'A', "short",
+  #   9,  'B', "short",
+  #   10,  'A', "short",
+  #   10,  'B', "short"
+  # )
+  # population %>% pivot_wider(names_from = feature, values_from = value)
+  population <- tribble(~card, ~A, ~B,
+                        1, 'long', 'long',
+                        2, 'long', 'long',
+                        3, 'long', 'short',
+                        4, 'short', 'long',
+                        5, 'short', 'long',
+                        6, 'short', 'long',
+                        7, 'short', 'long',
+                        8, 'short', 'long',
+                        9, 'short', 'long',
+                        10, 'short', 'short',
+                        11, 'short', 'short',
+                        12, 'short', 'short',
+                        13, 'short', 'short',
+                        14, 'short', 'short',
+                        15, 'short', 'short'
+  ) %>% pivot_longer(A:B, names_to = 'feature', values_to = 'value')
   
   card_sequence <- sample(1:max(population$card))
   card_sequence_index <- 1
@@ -145,29 +172,74 @@ simulation <- function() {
   ## initialize game
   history <- list()
   enforce_new_as_next_action <- TRUE
+  record_slotA <- ''
+  record_slotB <- ''
   
   ## play game
   for (i in 1:100) {
     actions <- disable_invalid_actions()
     actions <- agent_update_actions(actions, state)
+    if (!(any(actions > 0))) browser()
     chosen_action <- agent_choose(actions)
+    if (chosen_action == 'new') {
+      if (card_sequence_index > length(card_sequence)) {
+        break  ## game over
+      }
+    }
     game_update_state(chosen_action)
+    
+    if (chosen_action == 'assA') {
+      record_slotA <- state$card[state$feature == 'A']
+    }
+    if (chosen_action == 'assB') {
+      record_slotB <- state$card[state$feature == 'B']
+    }
     
     update_history()
     
     enforce_new_as_next_action <- chosen_action %in% c('assA', 'assB')
     
-    if ((card_sequence_index > length(card_sequence)) || (isTRUE(all_equal(state$slot, c('full', 'full'))))) {
+    if (isTRUE(all_equal(state$slot, c('full', 'full')))) {
       break  ## game over
     }
   }
-  history
+  # card_sequence_index
+  (record_slotA == 'long') & (record_slotB == 'long')
 }
 ```
 ```{r run}
+RUNS <- 50
 RARE_FEATURE <- 'A'
-PARAMETER_E <- .7
+PARAMETER <- list()
+PARAMETER$ok <- .1
+# PARAMETER$E <- .1
+# PARAMETER$r <- .1
+# PARAMETER$RR <- .1
+PARAMETER$P <- .1
 set.seed(123)
-history <- simulation()
-history
+# history <- simulation()
+# history
+out <- list()
+okp <- seq(.1, .99999, length.out = 9)
+for (ok in okp) {
+  PARAMETER$ok <- ok
+  steps <- replicate(RUNS, simulation())
+  out <- bind_rows(out, tibble(ok, steps, i = seq(RUNS)))
+}
 ```
+```{r}
+steps
+```
+
+```{r run}
+out %>% ggplot(aes(ok, steps)) +
+  stat_summary(geom = 'line', fun.data = mean_se) +
+  stat_summary(geom = 'pointrange', fun.data = mean_se)
+```
+```{r}
+out %>% mutate(solved = steps < 11) %>% group_by(ok) %>% summarize(mean(solved))
+```
+```{r}
+out %>% group_by(ok) %>% summarize(perc_solved = mean(steps)) %>% ggplot(aes(ok, perc_solved)) + geom_point() + geom_line() + ylim(0, 1)
+```
+
