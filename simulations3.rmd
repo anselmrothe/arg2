@@ -5,18 +5,29 @@ title: "arg2"
 library(tidyverse)
 library(memoise)
 ```
+
 ```{r general functions}
 normalize <- function(x) {
   if (sum(x)==0) x else x/sum(x)
 }
 ```
+
 ```{r functions}
 agent_choose <- function(actions) {
+  # given the agent's trait-determined weights on each legal action, make a
+  # random decision among those that are available:
   stopifnot(any(actions > 0))
   probabilities <- normalize(unlist(actions))
   sample(names(actions), 1, prob = probabilities) %>% as.character
 }
+
+
+
 agent_update_actions <- function(actions, state) {
+  # take the 'actions' tbl that initially holds a 1 for all legal actions and 0
+  # for impossible actions, and apply our knowledge of the actor's traits of
+  # (E)fficiency, (R)isk_awareness and (P)lacement_rule_comprehension to give
+  # new, characteristic weights to all legal actions:
   actions_excel <- lookup_state_in_excel_file_memoized(state)
   actions_excel <- actions_excel %>% as.list
   prob_ok <- (PARAMETER$ok / sum(actions_excel == 'ok'))
@@ -36,6 +47,9 @@ agent_update_actions <- function(actions, state) {
   # actions[actions_excel == 'P'] <- actions[actions_excel == 'P'] * PARAMETER$P
   actions
 }
+
+
+
 lookup_state_in_excel_file <- function(state) {
   ## compress state into single string representation
   state_chr <- state %>% state_wider %>% unlist %>% as.character %>% paste0(collapse = ' ')
@@ -51,14 +65,24 @@ lookup_state_in_excel_file <- function(state) {
   stopifnot(isTRUE(all.equal(colnames(actions), c("new", "qA", "qB", "assA", "assB"))))
   actions
 }
+
+
+
 lookup_state_in_excel_file_memoized <- memoise::memoize(lookup_state_in_excel_file)
 state_wider <- function(state) {
   state %>% pivot_wider(names_from = feature, values_from = c(slot, card))
 }
+
+
+
 simulation <- function() {
+  
   disable_invalid_actions <- function() {
-    ## initialize action space
+    # run as first step given each new state, set to 0 all those actions that are
+    # impossible ("not legal") given the current state (e.g., 'new card' when both
+    # features of the current card are still unknown)
     actions <- tribble(
+    ## initialize action space
       ~new, ~qA, ~qB, ~assA, ~assB,
       1, 1, 1, 1, 1
     )
@@ -88,7 +112,12 @@ simulation <- function() {
     return(actions)
   }
   
+  
+  
   game_update_state <- function(chosen_action) {
+    # given the current state and the agent's selection of one action, execute
+    # action and update the global variable representing the game state
+    
     ## this function works with side effects / global assignments / <<-
     if (chosen_action == 'new') {
       ## sample next card
@@ -108,6 +137,8 @@ simulation <- function() {
     }
   }
   
+  
+  
   update_history <- function() {
     history_row <- bind_cols(
       i = i, 
@@ -117,6 +148,8 @@ simulation <- function() {
       card %>% pivot_wider(names_from = feature, values_from = value))
     history <<- bind_rows(history, history_row)
   }
+  
+  
   
   state <- tribble(
     ~rare, ~feature, ~slot, ~card,
@@ -207,6 +240,7 @@ simulation <- function() {
   (record_slotA == 'long') & (record_slotB == 'long')
 }
 ```
+
 ```{r run}
 RUNS <- 50
 RARE_FEATURE <- 'A'
