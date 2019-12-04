@@ -52,13 +52,22 @@ agent_update_actions <- function(actions, state, parameters) {
 
 lookup_state_in_excel_file <- function(state) {
   ## compress state into single string representation
-  state_chr <- state %>% state_wider %>% unlist %>% as.character %>% paste0(collapse = ' ')
+  state_chr <- state %>%
+    mutate(slot = ifelse(slot == "[   ]", "[   ]", "full")) %>% 
+    state_wider %>%
+    unlist %>%
+    as.character %>%
+    paste0(collapse = ' ')
+  
   ## load excel table with states and actions
   xlsx <- readxl::read_excel('states and actions.xlsx', skip = 2)
-  all_states_chr <- xlsx %>% select(rare:featB) %>% 
+  all_states_chr <- xlsx %>% select(rare:featB) %>%
     apply(1, paste0, collapse = ' ')
+  
+  ## cough if current state is not in any of the rows in Excel sheet:
   if (sum(state_chr == all_states_chr) != 1) browser()
   stopifnot(sum(state_chr == all_states_chr) == 1)
+  
   ## identify actions that correspond to state
   actions <- xlsx[state_chr == all_states_chr,] %>% select(new:assB)
   stopifnot(nrow(actions) == 1)
@@ -102,11 +111,11 @@ simulation <- function(population, parameters) {
       actions$qB <- 0
     }
     temp <- state %>% filter(feature == 'A') %>% select(slot, card)
-    if (temp$slot == 'full' || temp$card == 'x') {
+    if (temp$slot != "[   ]" || temp$card == "x") {
       actions$assA <- 0
     }
     temp <- state %>% filter(feature == 'B') %>% select(slot, card)
-    if (temp$slot == 'full' || temp$card == 'x') {
+    if (temp$slot != "[   ]" || temp$card == "x") {
       actions$assB <- 0
     }
     return(actions)
@@ -131,10 +140,9 @@ simulation <- function(population, parameters) {
     } else if (chosen_action == 'qB') {
       state[state$feature == 'B',]$card <<- card[card$feature == 'B',]$value
     } else if (chosen_action == 'assA') {
-      browser()
-      state[state$feature == 'A',]$slot <<- 'full'
+      state[state$feature == 'A',]$slot <<- state[state$feature == "A",]$card
     } else if (chosen_action == 'assB') {
-      state[state$feature == 'B',]$slot <<- 'full'
+      state[state$feature == 'B',]$slot <<- state[state$feature == "B",]$card
     }
   }
   
@@ -190,8 +198,8 @@ simulation <- function(population, parameters) {
     update_history()
     
     enforce_new_as_next_action <- chosen_action %in% c('assA', 'assB')
-    
-    if (isTRUE(all_equal(state$slot, c('full', 'full')))) {
+    if ( state[state$feature == "A", "slot"] != "[   ]" & # TODO
+         state[state$feature == "B", "slot"] != "[   ]")  {
       break  ## game over
     }
   }
@@ -276,21 +284,18 @@ outcome_both_slots_full
 
 ```{r}
 # How often did both slots get filled with a long feature?
-```
-
-
-
-```{r run}
-# out %>% ggplot(aes(ok, steps)) +
-#   stat_summary(geom = 'line', fun.data = mean_se) +
-# stat_summary(geom = 'pointrange', fun.data = mean_se)
-```
-
-```{r}
-# out %>% mutate(solved = steps < 11) %>% group_by(ok) %>% summarize(mean(solved))
-```
-
-```{r}
-# out %>% group_by(ok) %>% summarize(perc_solved = mean(steps)) %>% ggplot(aes(ok, perc_solved)) + geom_point() + geom_line() + ylim(0, 1)
+outcome_chosen_features <- out_raw %>% 
+  group_by( param_ok, run ) %>% 
+  filter( i == max(i) ) %>% 
+  ungroup %>% 
+  group_by( param_ok ) %>% 
+  summarize( both_long = sum( slot_A == "long" & slot_B == "long" ),
+             one_long = sum( (slot_A == "long" & slot_B == "short") |
+                               (slot_A == "short" & slot_B == "long")
+                             ),
+             both_short = sum( slot_A == "short" & slot_B == "short" ),
+             incomplete = sum( "[   ]" %in% cbind(slot_A, slot_B) ) )
+outcome_chosen_features
+# place for plotting here
 ```
 
