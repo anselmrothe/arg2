@@ -23,15 +23,15 @@ agent_choose <- function(actions) {
 
 
 
-agent_update_actions <- function(actions, state) {
+agent_update_actions <- function(actions, state, parameters) {
   # take the 'actions' tbl that initially holds a 1 for all legal actions and 0
   # for impossible actions, and apply our knowledge of the actor's traits of
   # (E)fficiency, (R)isk_awareness and (P)lacement_rule_comprehension to give
   # new, characteristic weights to all legal actions:
   actions_excel <- lookup_state_in_excel_file_memoized(state)
   actions_excel <- actions_excel %>% as.list
-  prob_ok <- (PARAMETER$ok / sum(actions_excel == 'ok'))
-  prob_error <- ((1-PARAMETER$ok) / sum(!actions_excel %in% c('ok', 'x')))
+  prob_ok <- (parameters$ok / sum(actions_excel == 'ok'))
+  prob_error <- ((1-parameters$ok) / sum(!actions_excel %in% c('ok', 'x')))
   actions[actions_excel == 'ok'] <- actions[actions_excel == 'ok'] * prob_ok
   actions[actions_excel == 'E'] <- actions[actions_excel == 'E'] * prob_error
   actions[actions_excel == 'r'] <- actions[actions_excel == 'r'] * prob_error
@@ -40,11 +40,11 @@ agent_update_actions <- function(actions, state) {
   actions[actions_excel == 'P'] <- actions[actions_excel == 'P'] * prob_error
   # if(!sum(actions) > .99) browser()
   if(!sum(actions) < 1.01) browser()
-  # actions[actions_excel == 'E'] <- actions[actions_excel == 'E'] * PARAMETER$E
-  # actions[actions_excel == 'r'] <- actions[actions_excel == 'r'] * PARAMETER$r
-  # actions[actions_excel == 'RR'] <- actions[actions_excel == 'RR'] * PARAMETER$RR
-  # actions[actions_excel == '1/2r'] <- actions[actions_excel == '1/2r'] * (PARAMETER$r/2)
-  # actions[actions_excel == 'P'] <- actions[actions_excel == 'P'] * PARAMETER$P
+  # actions[actions_excel == 'E'] <- actions[actions_excel == 'E'] * PARAMETERS$E
+  # actions[actions_excel == 'r'] <- actions[actions_excel == 'r'] * PARAMETERS$r
+  # actions[actions_excel == 'RR'] <- actions[actions_excel == 'RR'] * PARAMETERS$RR
+  # actions[actions_excel == '1/2r'] <- actions[actions_excel == '1/2r'] * (PARAMETERS$r/2)
+  # actions[actions_excel == 'P'] <- actions[actions_excel == 'P'] * PARAMETERS$P
   actions
 }
 
@@ -75,7 +75,7 @@ state_wider <- function(state) {
 
 
 
-simulation <- function() {
+simulation <- function(population, parameters) {
   
   disable_invalid_actions <- function() {
     # run as first step given each new state, set to 0 all those actions that are
@@ -131,6 +131,7 @@ simulation <- function() {
     } else if (chosen_action == 'qB') {
       state[state$feature == 'B',]$card <<- card[card$feature == 'B',]$value
     } else if (chosen_action == 'assA') {
+      browser()
       state[state$feature == 'A',]$slot <<- 'full'
     } else if (chosen_action == 'assB') {
       state[state$feature == 'B',]$slot <<- 'full'
@@ -157,48 +158,6 @@ simulation <- function() {
     RARE_FEATURE, 'B', '[   ]', 'x'
   )
   
-  # population <- tribble(
-  #   ~card, ~feature, ~value,
-  #   1,  'A', "long",
-  #   1,  'B', "long",
-  #   2,  'A', "long",
-  #   2,  'B', "short",
-  #   3,  'A', "short",
-  #   3,  'B', "long",
-  #   4,  'A', "short",
-  #   4,  'B', "long",
-  #   5,  'A', "short",
-  #   5,  'B', "long",
-  #   6,  'A', "short",
-  #   6,  'B', "long",
-  #   7,  'A', "short",
-  #   7,  'B', "short",
-  #   8,  'A', "short",
-  #   8,  'B', "short",
-  #   9,  'A', "short",
-  #   9,  'B', "short",
-  #   10,  'A', "short",
-  #   10,  'B', "short"
-  # )
-  # population %>% pivot_wider(names_from = feature, values_from = value)
-  population <- tribble(~card, ~A, ~B,
-                        1, 'long', 'long',
-                        2, 'long', 'long',
-                        3, 'long', 'short',
-                        4, 'short', 'long',
-                        5, 'short', 'long',
-                        6, 'short', 'long',
-                        7, 'short', 'long',
-                        8, 'short', 'long',
-                        9, 'short', 'long',
-                        10, 'short', 'short',
-                        11, 'short', 'short',
-                        12, 'short', 'short',
-                        13, 'short', 'short',
-                        14, 'short', 'short',
-                        15, 'short', 'short'
-  ) %>% pivot_longer(A:B, names_to = 'feature', values_to = 'value')
-  
   card_sequence <- sample(1:max(population$card))
   card_sequence_index <- 1
   
@@ -211,7 +170,7 @@ simulation <- function() {
   ## play game
   for (i in 1:100) {
     actions <- disable_invalid_actions()
-    actions <- agent_update_actions(actions, state)
+    actions <- agent_update_actions(actions, state, parameters)
     if (!(any(actions > 0))) browser()
     chosen_action <- agent_choose(actions)
     if (chosen_action == 'new') {
@@ -236,44 +195,102 @@ simulation <- function() {
       break  ## game over
     }
   }
-  # card_sequence_index
-  (record_slotA == 'long') & (record_slotB == 'long')
+  
+  ## result: the whole log
+  history
 }
 ```
 
+Run the simulation: set one or more dimensions on which we vary parameters, feed them to the simulation, get a resulting data structure for later analysis.
+
 ```{r run}
-RUNS <- 50
-RARE_FEATURE <- 'A'
-PARAMETER <- list()
-PARAMETER$ok <- .1
-# PARAMETER$E <- .1
-# PARAMETER$r <- .1
-# PARAMETER$RR <- .1
-PARAMETER$P <- .1
+## set parameter ranges and other initial values:
 set.seed(123)
-# history <- simulation()
-# history
-out <- list()
-okp <- seq(.1, .99999, length.out = 9)
-for (ok in okp) {
-  PARAMETER$ok <- ok
-  steps <- replicate(RUNS, simulation())
-  out <- bind_rows(out, tibble(ok, steps, i = seq(RUNS)))
-}
-```
-```{r}
-steps
+RUNS <- 3
+RARE_FEATURE <- 'A'
+
+## actor's parameters on (E)fficiency, (R)isk and comprehension of (P)lacement
+## rules:
+PARAMETERS <- list()
+PARAMETERS$ok <- .1
+# PARAMETERS$E <- .1
+# PARAMETERS$r <- .1
+# PARAMETERS$RR <- .1
+PARAMETERS$P <- .1
+
+## what we vary to simulate a range of setups:
+RANGE_OK <- seq(.1, .99999, length.out = 9)
+
+## build list of parameter variations to feed into the simulation:
+sim_params <- expand.grid(
+  run = 1:RUNS,
+  ok = RANGE_OK
+) %>% as.list
+
+## the card stack with which we start the simulation:
+POPULATION <- tribble(~card, ~A, ~B,
+                      1, 'long', 'long',
+                      2, 'long', 'long',
+                      3, 'long', 'short',
+                      4, 'short', 'long',
+                      5, 'short', 'long',
+                      6, 'short', 'long',
+                      7, 'short', 'long',
+                      8, 'short', 'long',
+                      9, 'short', 'long',
+                      10, 'short', 'short',
+                      11, 'short', 'short',
+                      12, 'short', 'short',
+                      13, 'short', 'short',
+                      14, 'short', 'short',
+                      15, 'short', 'short'
+  ) %>% pivot_longer(A:B, names_to = 'feature', values_to = 'value')
+
+## raw output is a list of histories, length determined by RANGE_OK:
+out_raw <- pmap(sim_params,
+                function(run, ok) {
+                  PARAMETERS$ok <- ok
+                  simulation(population = POPULATION,
+                             parameters = PARAMETERS) %>%
+                    mutate(param_ok = ok,
+                           run = run)
+                }) %>% 
+  bind_rows
+
 ```
 
+Analyses:
+
+```{r}
+# How often did both slots end up filled?
+outcome_both_slots_full <- out_raw %>% 
+  group_by( param_ok, run ) %>% 
+  filter( i == max(i) ) %>%
+  mutate( both_slots_full = slot_A != "[   ]" & slot_B != "[   ]" ) %>% 
+  ungroup %>% 
+  group_by( param_ok ) %>% 
+  summarize( both_slots_full = sum( both_slots_full ))
+outcome_both_slots_full
+# place for plotting here
+```
+
+```{r}
+# How often did both slots get filled with a long feature?
+```
+
+
+
 ```{r run}
-out %>% ggplot(aes(ok, steps)) +
-  stat_summary(geom = 'line', fun.data = mean_se) +
-  stat_summary(geom = 'pointrange', fun.data = mean_se)
+# out %>% ggplot(aes(ok, steps)) +
+#   stat_summary(geom = 'line', fun.data = mean_se) +
+# stat_summary(geom = 'pointrange', fun.data = mean_se)
 ```
+
 ```{r}
-out %>% mutate(solved = steps < 11) %>% group_by(ok) %>% summarize(mean(solved))
+# out %>% mutate(solved = steps < 11) %>% group_by(ok) %>% summarize(mean(solved))
 ```
+
 ```{r}
-out %>% group_by(ok) %>% summarize(perc_solved = mean(steps)) %>% ggplot(aes(ok, perc_solved)) + geom_point() + geom_line() + ylim(0, 1)
+# out %>% group_by(ok) %>% summarize(perc_solved = mean(steps)) %>% ggplot(aes(ok, perc_solved)) + geom_point() + geom_line() + ylim(0, 1)
 ```
 
