@@ -211,10 +211,10 @@ simulation <- function(population, parameters) {
 
 Run the simulation: set one or more dimensions on which we vary parameters, feed them to the simulation, get a resulting data structure for later analysis.
 
-```{r run}
+```{r run, cache=TRUE}
 ## set parameter ranges and other initial values:
 set.seed(123)
-RUNS <- 3
+RUNS <- 100
 RARE_FEATURE <- 'A'
 
 ## actor's parameters on (E)fficiency, (R)isk and comprehension of (P)lacement
@@ -289,13 +289,33 @@ outcome_chosen_features <- out_raw %>%
   filter( i == max(i) ) %>% 
   ungroup %>% 
   group_by( param_ok ) %>% 
-  summarize( both_long = sum( slot_A == "long" & slot_B == "long" ),
-             one_long = sum( (slot_A == "long" & slot_B == "short") |
-                               (slot_A == "short" & slot_B == "long")
-                             ),
-             both_short = sum( slot_A == "short" & slot_B == "short" ),
-             incomplete = sum( "[   ]" %in% cbind(slot_A, slot_B) ) )
-outcome_chosen_features
-# place for plotting here
+  summarize( both_long          = sum( slot_A == "long"  & slot_B == "long" ),
+             only_rare_long     = sum( slot_A == "long"  & slot_B == "short" ),
+             only_frequent_long = sum( slot_A == "short" & slot_B == "long" ),
+             both_short         = sum( slot_A == "short" & slot_B == "short" ),
+             rare_missing       = sum( slot_A == "[   ]" & slot_B %in% c("long", "short") ),
+             frequent_missing   = sum( slot_A %in% c("long", "short") & slot_B == "[   ]" ),
+             both_missing       = sum( slot_A == "[   ]" & slot_B == "[   ]" )
+  )
+```
+
+```{r plot_outcome}
+outcome_chosen_features %>% 
+  pivot_longer( both_long:both_missing,
+                names_to = "outcome",
+                values_to = "count" ) %>% 
+  mutate( outcome = fct_relevel(outcome,
+                                "both_missing",
+                                "frequent_missing",
+                                "rare_missing",
+                                "both_short",
+                                "only_frequent_long",
+                                "only_rare_long",
+                                "both_long"
+                                )) %>% 
+  ggplot(aes( x = param_ok,
+              y = count,
+              fill = outcome )) +
+  geom_area()
 ```
 
