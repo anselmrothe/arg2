@@ -327,13 +327,13 @@ outcomes_skewed <- out_raw_skewed %>%
   filter( i == max(i) ) %>% 
   ungroup %>% 
   group_by( param_ok ) %>% 
-  summarize( both_long          = sum( slot_A == "long"  & slot_B == "long" ),
-             only_rare_long     = sum( slot_A == "long"  & slot_B == "short" ),
-             only_frequent_long = sum( slot_A == "short" & slot_B == "long" ),
-             both_short         = sum( slot_A == "short" & slot_B == "short" ),
-             rare_missing       = sum( slot_A == "[   ]" & slot_B %in% c("long", "short") ),
-             frequent_missing   = sum( slot_A %in% c("long", "short") & slot_B == "[   ]" ),
-             both_missing       = sum( slot_A == "[   ]" & slot_B == "[   ]" )
+  summarize( both_long    = sum( slot_A == "long"  & slot_B == "long" ),
+             only_A_long  = sum( slot_A == "long"  & slot_B == "short" ),
+             only_B_long  = sum( slot_A == "short" & slot_B == "long" ),
+             both_short   = sum( slot_A == "short" & slot_B == "short" ),
+             A_missing    = sum( slot_A == "[   ]" & slot_B %in% c("long", "short") ),
+             B_missing    = sum( slot_A %in% c("long", "short") & slot_B == "[   ]" ),
+             both_missing = sum( slot_A == "[   ]" & slot_B == "[   ]" )
   )
 
 outcomes_even <- out_raw_even %>% 
@@ -341,13 +341,13 @@ outcomes_even <- out_raw_even %>%
   filter( i == max(i) ) %>% 
   ungroup %>% 
   group_by( param_ok ) %>% 
-  summarize( both_long          = sum( slot_A == "long"  & slot_B == "long" ),
-             only_rare_long     = sum( slot_A == "long"  & slot_B == "short" ),
-             only_frequent_long = sum( slot_A == "short" & slot_B == "long" ),
-             both_short         = sum( slot_A == "short" & slot_B == "short" ),
-             rare_missing       = sum( slot_A == "[   ]" & slot_B %in% c("long", "short") ),
-             frequent_missing   = sum( slot_A %in% c("long", "short") & slot_B == "[   ]" ),
-             both_missing       = sum( slot_A == "[   ]" & slot_B == "[   ]" )
+  summarize( both_long    = sum( slot_A == "long"  & slot_B == "long" ),
+             only_A_long  = sum( slot_A == "long"  & slot_B == "short" ),
+             only_B_long  = sum( slot_A == "short" & slot_B == "long" ),
+             both_short   = sum( slot_A == "short" & slot_B == "short" ),
+             A_missing    = sum( slot_A == "[   ]" & slot_B %in% c("long", "short") ),
+             B_missing    = sum( slot_A %in% c("long", "short") & slot_B == "[   ]" ),
+             both_missing = sum( slot_A == "[   ]" & slot_B == "[   ]" )
   )
 ```
 
@@ -358,11 +358,11 @@ plot_skewed <- outcomes_skewed %>%
                 values_to = "count" ) %>% 
   mutate( outcome = fct_relevel(outcome,
                                 "both_missing",
-                                "frequent_missing",
-                                "rare_missing",
+                                "B_missing",
+                                "A_missing",
                                 "both_short",
-                                "only_frequent_long",
-                                "only_rare_long",
+                                "only_B_long",
+                                "only_A_long",
                                 "both_long"
   )) %>% 
   ggplot(aes( x = param_ok,
@@ -370,7 +370,7 @@ plot_skewed <- outcomes_skewed %>%
               fill = outcome )) +
   geom_area() +
   colscale +
-  ggtitle("skewed population")
+  ggtitle("skewed: A is rare")
 
 plot_even <- outcomes_even %>% 
   pivot_longer( both_long:both_missing,
@@ -378,11 +378,11 @@ plot_even <- outcomes_even %>%
                 values_to = "count" ) %>% 
   mutate( outcome = fct_relevel(outcome,
                                 "both_missing",
-                                "frequent_missing",
-                                "rare_missing",
+                                "B_missing",
+                                "A_missing",
                                 "both_short",
-                                "only_frequent_long",
-                                "only_rare_long",
+                                "only_B_long",
+                                "only_A_long",
                                 "both_long"
   )) %>% 
   ggplot(aes( x = param_ok,
