@@ -227,7 +227,7 @@ Run the simulation: set one or more dimensions on which we vary parameters, feed
 ```{r run, cache=TRUE}
 ## set parameter ranges and other initial values:
 set.seed(123)
-RUNS <- 50
+RUNS <- 10
 
 ## actor's parameters on (E)fficiency, (R)isk and comprehension of (P)lacement
 ## rules:
@@ -394,7 +394,9 @@ plot_even <- outcomes_even %>%
   ggtitle("even population")
 
 
-
+## patchwork plot compositing:
 plot_even | plot_skewed
+
+
 ```
 
