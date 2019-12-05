@@ -23,6 +23,8 @@ colscale <- scale_fill_manual(values = c(
 normalize <- function(x) {
   if (sum(x)==0) x else x/sum(x)
 }
+softmax <- function(beta = 1, X)
+  sapply(X, function(x) (exp(beta * x))/sum(exp(beta * X)))
 ```
 
 ```{r functions}
@@ -48,8 +50,9 @@ agent_update_actions <- function(actions, state, parameters) {
   actions[actions_excel == 'ok'] <- actions[actions_excel == 'ok'] * prob_ok
   actions[actions_excel == 'E'] <- actions[actions_excel == 'E'] * prob_error
   actions[actions_excel == 'r'] <- actions[actions_excel == 'r'] * prob_error
+  actions[actions_excel == 'r/2'] <- actions[actions_excel == 'r/2'] * prob_error
   actions[actions_excel == 'RR'] <- actions[actions_excel == 'RR'] * prob_error
-  actions[actions_excel == '1/2r'] <- actions[actions_excel == '1/2r'] * prob_error
+  actions[actions_excel == 'RR/2'] <- actions[actions_excel == 'RR/2'] * prob_error
   actions[actions_excel == 'P'] <- actions[actions_excel == 'P'] * prob_error
   # if(!sum(actions) > .99) browser()
   if(!sum(actions) < 1.01) browser()
@@ -227,7 +230,7 @@ Run the simulation: set one or more dimensions on which we vary parameters, feed
 ```{r run, cache=TRUE}
 ## set parameter ranges and other initial values:
 set.seed(123)
-RUNS <- 10
+RUNS <- 10 # 10 runs: 27s runtime (Andreas, 20191205)
 
 ## actor's parameters on (E)fficiency, (R)isk and comprehension of (P)lacement
 ## rules:
