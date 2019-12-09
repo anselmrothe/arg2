@@ -339,10 +339,10 @@ Analyses:
 ```{r}
 # How often did both slots get filled with a long feature?
 outcomes_skewed <- out_raw_skewed %>% 
-  group_by( param_ok, run ) %>% 
+  group_by( param_E, param_R, param_P, run ) %>% 
   filter( i == max(i) ) %>% 
   ungroup %>% 
-  group_by( param_ok ) %>% 
+  group_by( param_E, param_R, param_P ) %>% 
   summarize( both_long    = sum( slot_A == "long"  & slot_B == "long" ),
              only_A_long  = sum( slot_A == "long"  & slot_B == "short" ),
              only_B_long  = sum( slot_A == "short" & slot_B == "long" ),
@@ -353,10 +353,10 @@ outcomes_skewed <- out_raw_skewed %>%
   )
 
 outcomes_even <- out_raw_even %>% 
-  group_by( param_ok, run ) %>% 
+  group_by( param_E, param_R, param_P, run ) %>% 
   filter( i == max(i) ) %>% 
   ungroup %>% 
-  group_by( param_ok ) %>% 
+  group_by( param_E, param_R, param_P ) %>% 
   summarize( both_long    = sum( slot_A == "long"  & slot_B == "long" ),
              only_A_long  = sum( slot_A == "long"  & slot_B == "short" ),
              only_B_long  = sum( slot_A == "short" & slot_B == "long" ),
@@ -381,12 +381,15 @@ plot_skewed <- outcomes_skewed %>%
                                 "only_A_long",
                                 "both_long"
   )) %>% 
-  ggplot(aes( x = param_ok,
+  ggplot(aes( x = param_E,
               y = count,
               fill = outcome )) +
   geom_area() +
   colscale +
+  facet_grid(param_P ~ param_R, labeller = label_both) +
   ggtitle("skewed: A is rare")
+
+
 
 plot_even <- outcomes_even %>% 
   pivot_longer( both_long:both_missing,
@@ -401,18 +404,19 @@ plot_even <- outcomes_even %>%
                                 "only_A_long",
                                 "both_long"
   )) %>% 
-  ggplot(aes( x = param_ok,
+  ggplot(aes( x = param_E,
               y = count,
               fill = outcome )) +
   geom_area() +
   guides(fill = F) +
   colscale +
+  facet_grid(param_P ~ param_R, labeller = label_both) +
   ggtitle("even population")
 
 
 ## patchwork plot compositing:
-plot_even | plot_skewed
+plot_even / plot_skewed
 
-
+ggsave("plots/outcomes.pdf")
 ```
 
