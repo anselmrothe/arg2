@@ -215,6 +215,9 @@ simulation <- function(population, parameters, rare_feature) {
     }
   }
   
+  ## update progress bar:
+  pb$tick()$print()
+  
   ## result: the whole log
   history %>% 
     keep(function(x) length(x) > 1) %>% # remove empty entries
@@ -227,7 +230,7 @@ Run the simulation: set one or more dimensions on which we vary parameters, feed
 ```{r run, cache=TRUE}
 ## set parameter ranges and other initial values:
 set.seed(123)
-RUNS <- 1000 # 10 runs: 27s runtime (Andreas, 20191205)
+RUNS <- 100 # 1000 runs: ca. 10h runtime (Andreas, 20191209)
 
 ## actor's parameters on (E)fficiency, (R)isk and comprehension of (P)lacement
 ## rules:
@@ -274,14 +277,68 @@ POP_EVEN <- tribble(~card, ~A, ~B,
                     16, 'short', 'short'
 ) %>% pivot_longer(A:B, names_to = 'feature', values_to = 'value')
 
+POP_SKEWED_LARGE <- tribble(~card, ~A, ~B,
+                      1, 'long', 'long',
+                      2, 'long', 'long',
+                      3, 'long', 'short',
+                      4, 'short', 'long',
+                      5, 'short', 'long',
+                      6, 'short', 'long',
+                      7, 'short', 'long',
+                      8, 'short', 'long',
+                      9, 'short', 'long',
+                      10, 'short', 'long',
+                      11, 'short', 'long',
+                      12, 'short', 'long',
+                      13, 'short', 'long',
+                      14, 'short', 'short',
+                      15, 'short', 'short',
+                      16, 'short', 'short',
+                      17, 'short', 'short',
+                      18, 'short', 'short',
+                      19, 'short', 'short',
+                      20, 'short', 'short',
+                      21, 'short', 'short',
+                      22, 'short', 'short',
+                      23, 'short', 'short'
+  ) %>% pivot_longer(A:B, names_to = 'feature', values_to = 'value')
+
+POP_EVEN_LARGE <- tribble(~card, ~A, ~B,
+                    1,  'long', 'long',
+                    2,  'long', 'long',
+                    3,  'long', 'long',
+                    4,  'long', 'long',
+                    5,  'long', 'short',
+                    6,  'long', 'short',
+                    7,  'long', 'short',
+                    8,  'long', 'short',
+                    9,  'short', 'long',
+                    10, 'short', 'long',
+                    11, 'short', 'long',
+                    12, 'short', 'long',
+                    13, 'short', 'short',
+                    14, 'short', 'short',
+                    15, 'short', 'short',
+                    16, 'short', 'short',
+                    17,  'long', 'long',
+                    18,  'long', 'long',
+                    19,  'long', 'short',
+                    20,  'long', 'short',
+                    21, 'short', 'long',
+                    22, 'short', 'long',
+                    23, 'short', 'short',
+                    24, 'short', 'short'
+) %>% pivot_longer(A:B, names_to = 'feature', values_to = 'value')
+
+
 ## what we vary to simulate a range of setups:
 ## How frequently does the agent commit an error of a certain kind?
 ##                 +--never commit this error
 ##                 |   +---max.
 ##                 |   |
 ##                 V   V
-TESTRANGE_E <- seq(0,  0.5, length.out = 7)
-TESTRANGE_R <- seq(0,  1, length.out = 7)
+TESTRANGE_E <- seq(0,  0.5, length.out = 6)
+TESTRANGE_R <- seq(0,  0.5, length.out = 6)
 TESTRANGE_P <- seq(0,  0.1, length.out = 3)
 
 
@@ -294,6 +351,9 @@ sim_params <- expand.grid(
   error_P = TESTRANGE_P
 ) %>% as.list
 
+## init progress bar:
+pb <- progress_estimated(length(sim_params[[1]]))
+
 ## Here's where we run the simulation.
 ## raw output is a list of histories, length determined by RANGE_OK:
 out_raw_skewed <- pmap(sim_params,
@@ -301,7 +361,7 @@ out_raw_skewed <- pmap(sim_params,
                          PARAMETERS$E <- error_E
                          PARAMETERS$R <- error_R
                          PARAMETERS$P <- error_P
-                         simulation(population = POP_SKEWED,
+                         simulation(population = POP_SKEWED_LARGE,
                                     parameters = PARAMETERS,
                                     rare_feature = "A") %>%
                            mutate(param_E = error_E,
@@ -316,7 +376,7 @@ out_raw_even <- pmap(sim_params,
                        PARAMETERS$E <- error_E
                        PARAMETERS$R <- error_R
                        PARAMETERS$P <- error_P
-                       simulation(population = POP_EVEN,
+                       simulation(population = POP_EVEN_LARGE,
                                   parameters = PARAMETERS,
                                   rare_feature = "none") %>%
                          mutate(param_E = error_E,
@@ -417,6 +477,6 @@ plot_even <- outcomes_even %>%
 ## patchwork plot compositing:
 plot_even / plot_skewed
 
-ggsave("plots/outcomes.pdf")
+ggsave("plots/outcomes_largepop.pdf")
 ```
 
