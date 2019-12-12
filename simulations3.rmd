@@ -230,51 +230,51 @@ Run the simulation: set one or more dimensions on which we vary parameters, feed
 ```{r run, cache=TRUE}
 ## set parameter ranges and other initial values:
 set.seed(123)
-RUNS <- 100 # 1000 runs: ca. 10h runtime (Andreas, 20191209)
+RUNS <- 5 # 1000 runs: ca. 10h runtime (Andreas, 20191209)
 
-## actor's parameters on (E)fficiency, (R)isk and comprehension of (P)lacement
-## rules:
+## init actor's parameters on (E)fficiency, (R)isk and comprehension of
+## (P)lacement rules:
 PARAMETERS <- list()
 PARAMETERS$E <- .2
 PARAMETERS$R <- .3
 PARAMETERS$P <- .05
 
 ## the card stack with which we start the simulation:
-POP_SKEWED <- tribble(~card, ~A, ~B,
-                      1, 'long', 'long',
-                      2, 'long', 'long',
-                      3, 'long', 'short',
-                      4, 'short', 'long',
-                      5, 'short', 'long',
-                      6, 'short', 'long',
-                      7, 'short', 'long',
-                      8, 'short', 'long',
-                      9, 'short', 'long',
-                      10, 'short', 'short',
-                      11, 'short', 'short',
-                      12, 'short', 'short',
-                      13, 'short', 'short',
-                      14, 'short', 'short',
-                      15, 'short', 'short'
-  ) %>% pivot_longer(A:B, names_to = 'feature', values_to = 'value')
+POP_SKEWED_SMALL <- tribble(~card, ~A, ~B,
+                            1,  'long',  'long',
+                            2,  'long',  'long',
+                            3,  'long',  'short',
+                            4,  'short', 'long',
+                            5,  'short', 'long',
+                            6,  'short', 'long',
+                            7,  'short', 'long',
+                            8,  'short', 'long',
+                            9,  'short', 'long',
+                            10, 'short', 'short',
+                            11, 'short', 'short',
+                            12, 'short', 'short',
+                            13, 'short', 'short',
+                            14, 'short', 'short',
+                            15, 'short', 'short'
+) %>% pivot_longer(A:B, names_to = 'feature', values_to = 'value')
 
-POP_EVEN <- tribble(~card, ~A, ~B,
-                    1,  'long', 'long',
-                    2,  'long', 'long',
-                    3,  'long', 'long',
-                    4,  'long', 'long',
-                    5,  'long', 'short',
-                    6,  'long', 'short',
-                    7,  'long', 'short',
-                    8,  'long', 'short',
-                    9,  'short', 'long',
-                    10, 'short', 'long',
-                    11, 'short', 'long',
-                    12, 'short', 'long',
-                    13, 'short', 'short',
-                    14, 'short', 'short',
-                    15, 'short', 'short',
-                    16, 'short', 'short'
+POP_EVEN_SMALL <- tribble(~card, ~A, ~B,
+                          1,  'long',  'long',
+                          2,  'long',  'long',
+                          3,  'long',  'long',
+                          4,  'long',  'long',
+                          5,  'long',  'short',
+                          6,  'long',  'short',
+                          7,  'long',  'short',
+                          8,  'long',  'short',
+                          9,  'short', 'long',
+                          10, 'short', 'long',
+                          11, 'short', 'long',
+                          12, 'short', 'long',
+                          13, 'short', 'short',
+                          14, 'short', 'short',
+                          15, 'short', 'short',
+                          16, 'short', 'short'
 ) %>% pivot_longer(A:B, names_to = 'feature', values_to = 'value')
 
 POP_SKEWED_LARGE <- tribble(~card, ~A, ~B,
@@ -301,7 +301,7 @@ POP_SKEWED_LARGE <- tribble(~card, ~A, ~B,
                       21, 'short', 'short',
                       22, 'short', 'short',
                       23, 'short', 'short'
-  ) %>% pivot_longer(A:B, names_to = 'feature', values_to = 'value')
+) %>% pivot_longer(A:B, names_to = 'feature', values_to = 'value')
 
 POP_EVEN_LARGE <- tribble(~card, ~A, ~B,
                     1,  'long', 'long',
@@ -354,51 +354,48 @@ sim_params <- expand.grid(
 ## init progress bar:
 pb <- progress_estimated(length(sim_params[[1]]))
 
-## Here's where we run the simulation.
-## raw output is a list of histories, length determined by RANGE_OK:
-out_raw_skewed <- pmap(sim_params,
-                       function(run, error_E, error_R, error_P) {
-                         PARAMETERS$E <- error_E
-                         PARAMETERS$R <- error_R
-                         PARAMETERS$P <- error_P
-                         simulation(population = POP_SKEWED_LARGE,
-                                    parameters = PARAMETERS,
-                                    rare_feature = "A") %>%
-                           mutate(param_E = error_E,
-                                  param_R = error_R,
-                                  param_P = error_P,
-                                  run = run)
-                       }) %>% 
-  bind_rows
-
-out_raw_even <- pmap(sim_params,
-                     function(run, error_E, error_R, error_P) {
-                       PARAMETERS$E <- error_E
-                       PARAMETERS$R <- error_R
-                       PARAMETERS$P <- error_P
-                       simulation(population = POP_EVEN_LARGE,
-                                  parameters = PARAMETERS,
-                                  rare_feature = "none") %>%
-                         mutate(param_E = error_E,
-                                param_R = error_R,
-                                param_P = error_P,
-                                run = run)
-                     }) %>% 
-  bind_rows
 
 
+## Spread the simulation on our grid of parameter ranges. raw output is a tbl
+## of histories of every run:
+simulate_range <- function(params, card_deck, rare_feature){
+  out_raw_skewed_large <- pmap(params,
+                               function(run, error_E, error_R, error_P) {
+                                 if( run %% RUNS == 0) cat(".")
+                                 PARAMETERS$E <- error_E
+                                 PARAMETERS$R <- error_R
+                                 PARAMETERS$P <- error_P
+                                 simulation(population = card_deck,
+                                            parameters = PARAMETERS,
+                                            rare_feature = "A") %>%
+                                   mutate(param_E = error_E,
+                                          param_R = error_R,
+                                          param_P = error_P,
+                                          run = run)
+                               }) %>% 
+    bind_rows
+}
 
-## combine skewed and even populations to plot them side by side:
-#out_skewed$population <- "skewed"
-#out_even$population <- "even"
-#out_raw <- 
+## run the range-wise simulation for card decks large and small, even and
+## skewed:
+cat("\ncard set 1/4...\n")
+out_raw_skewed_large <- simulate_range(sim_params, POP_SKEWED_LARGE, "A")
+cat("card set 2/4...\n")
+out_raw_even_large   <- simulate_range(sim_params, POP_EVEN_LARGE, "none")
+cat("card set 3/4...\n")
+out_raw_skewed_small <- simulate_range(sim_params, POP_SKEWED_SMALL, "A")
+cat("card set 4/4...\n")
+out_raw_even_small   <- simulate_range(sim_params, POP_EVEN_SMALL, "none")
+
+## save copy of the simulation dataset for safety:
+write.table("rdata/simulation_data.RData")
 ```
 
 Analyses:
 
 ```{r}
 # How often did both slots get filled with a long feature?
-outcomes_skewed <- out_raw_skewed %>% 
+outcomes_skewed_large <- out_raw_skewed_large %>% 
   group_by( param_E, param_R, param_P, run ) %>% 
   filter( i == max(i) ) %>% 
   ungroup %>% 
@@ -410,9 +407,9 @@ outcomes_skewed <- out_raw_skewed %>%
              A_missing    = sum( slot_A == "[   ]" & slot_B %in% c("long", "short") ),
              B_missing    = sum( slot_A %in% c("long", "short") & slot_B == "[   ]" ),
              both_missing = sum( slot_A == "[   ]" & slot_B == "[   ]" )
-  )
+  ) %>% ungroup
 
-outcomes_even <- out_raw_even %>% 
+outcomes_even_large <- out_raw_even_large %>% 
   group_by( param_E, param_R, param_P, run ) %>% 
   filter( i == max(i) ) %>% 
   ungroup %>% 
@@ -424,11 +421,39 @@ outcomes_even <- out_raw_even %>%
              A_missing    = sum( slot_A == "[   ]" & slot_B %in% c("long", "short") ),
              B_missing    = sum( slot_A %in% c("long", "short") & slot_B == "[   ]" ),
              both_missing = sum( slot_A == "[   ]" & slot_B == "[   ]" )
-  )
+  ) %>% ungroup
+
+outcomes_skewed_small <- out_raw_skewed_small %>% 
+  group_by( param_E, param_R, param_P, run ) %>% 
+  filter( i == max(i) ) %>% 
+  ungroup %>% 
+  group_by( param_E, param_R, param_P ) %>% 
+  summarize( both_long    = sum( slot_A == "long"  & slot_B == "long" ),
+             only_A_long  = sum( slot_A == "long"  & slot_B == "short" ),
+             only_B_long  = sum( slot_A == "short" & slot_B == "long" ),
+             both_short   = sum( slot_A == "short" & slot_B == "short" ),
+             A_missing    = sum( slot_A == "[   ]" & slot_B %in% c("long", "short") ),
+             B_missing    = sum( slot_A %in% c("long", "short") & slot_B == "[   ]" ),
+             both_missing = sum( slot_A == "[   ]" & slot_B == "[   ]" )
+  ) %>% ungroup
+
+outcomes_even_small <- out_raw_even_small %>% 
+  group_by( param_E, param_R, param_P, run ) %>% 
+  filter( i == max(i) ) %>% 
+  ungroup %>% 
+  group_by( param_E, param_R, param_P ) %>% 
+  summarize( both_long    = sum( slot_A == "long"  & slot_B == "long" ),
+             only_A_long  = sum( slot_A == "long"  & slot_B == "short" ),
+             only_B_long  = sum( slot_A == "short" & slot_B == "long" ),
+             both_short   = sum( slot_A == "short" & slot_B == "short" ),
+             A_missing    = sum( slot_A == "[   ]" & slot_B %in% c("long", "short") ),
+             B_missing    = sum( slot_A %in% c("long", "short") & slot_B == "[   ]" ),
+             both_missing = sum( slot_A == "[   ]" & slot_B == "[   ]" )
+  ) %>% ungroup
 ```
 
 ```{r plot_outcome}
-plot_skewed <- outcomes_skewed %>% 
+plot_skewed_small <- outcomes_skewed_small %>% 
   pivot_longer( both_long:both_missing,
                 names_to = "outcome",
                 values_to = "count" ) %>% 
@@ -447,11 +472,13 @@ plot_skewed <- outcomes_skewed %>%
   geom_area() +
   colscale +
   facet_grid(param_P ~ param_R, labeller = label_both) +
-  ggtitle("skewed: A is rare")
+  ggtitle("skewed (rare feature A), 15 cards")
 
 
 
-plot_even <- outcomes_even %>% 
+
+
+plot_even_small <- outcomes_even_small %>% 
   pivot_longer( both_long:both_missing,
                 names_to = "outcome",
                 values_to = "count" ) %>% 
@@ -471,11 +498,73 @@ plot_even <- outcomes_even %>%
   guides(fill = F) +
   colscale +
   facet_grid(param_P ~ param_R, labeller = label_both) +
-  ggtitle("even population")
+  ggtitle("even pop., 16 cards")
 
 
+
+
+
+plot_skewed_large <- outcomes_skewed_large %>% 
+  pivot_longer( both_long:both_missing,
+                names_to = "outcome",
+                values_to = "count" ) %>% 
+  mutate( outcome = fct_relevel(outcome,
+                                "both_missing",
+                                "B_missing",
+                                "A_missing",
+                                "both_short",
+                                "only_B_long",
+                                "only_A_long",
+                                "both_long"
+  )) %>% 
+  ggplot(aes( x = param_E,
+              y = count,
+              fill = outcome )) +
+  geom_area() +
+  guides(fill = F) +
+  colscale +
+  facet_grid(param_P ~ param_R, labeller = label_both) +
+  ggtitle("skewed (rare feature A), 23 cards")
+
+
+
+
+
+plot_even_large <- outcomes_even_large %>% 
+  pivot_longer( both_long:both_missing,
+                names_to = "outcome",
+                values_to = "count" ) %>% 
+  mutate( outcome = fct_relevel(outcome,
+                                "both_missing",
+                                "B_missing",
+                                "A_missing",
+                                "both_short",
+                                "only_B_long",
+                                "only_A_long",
+                                "both_long"
+  )) %>% 
+  ggplot(aes( x = param_E,
+              y = count,
+              fill = outcome )) +
+  geom_area() +
+  guides(fill = F) +
+  colscale +
+  facet_grid(param_P ~ param_R, labeller = label_both) +
+  ggtitle("even pop., 24 cards")
 ## patchwork plot compositing:
-plot_even / plot_skewed
+(plot_even_small | plot_skewed_small) / (plot_even_large | plot_skewed_large)
+
+## save as PDF:
+plot_file_name <- paste0("plot/outcomes_",
+                         Sys.Date() %>% str_replace_all("-", ""),
+                         "_",
+                         format(Sys.time(), "%X") %>% str_replace_all(":", ""),
+                         "_N",
+                         RUNS,
+                         ".pdf")
+ggsave(plot_file_name, width = 30, height = 15, units = "in")
+```
+
 
 ggsave("plots/outcomes_largepop.pdf")
 ```
