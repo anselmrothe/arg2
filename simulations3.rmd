@@ -216,7 +216,7 @@ simulation <- function(population, parameters, rare_feature) {
   }
   
   ## update progress bar:
-  pb$tick()$print()
+  #pb$tick()$print()
   
   ## result: the whole log
   history %>% 
@@ -350,9 +350,6 @@ sim_params <- expand.grid(
   error_R = TESTRANGE_R,
   error_P = TESTRANGE_P
 ) %>% as.list
-
-## init progress bar:
-pb <- progress_estimated(length(sim_params[[1]]))
 
 
 
