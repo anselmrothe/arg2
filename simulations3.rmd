@@ -5,6 +5,7 @@ title: "arg2"
 library(tidyverse)
 library(memoise)
 library(patchwork)
+library(furrr)
 colscale <- scale_fill_manual(values = c(
   # 3 red tones
   "#990000",
@@ -230,7 +231,7 @@ Run the simulation: set one or more dimensions on which we vary parameters, feed
 ```{r run, cache=TRUE}
 ## set parameter ranges and other initial values:
 set.seed(123)
-RUNS <- 5 # 1000 runs: ca. 10h runtime (Andreas, 20191209)
+RUNS <- 100 # 1000 runs: ca. 10h runtime (Andreas, 20191209)
 
 ## init actor's parameters on (E)fficiency, (R)isk and comprehension of
 ## (P)lacement rules:
@@ -355,8 +356,11 @@ sim_params <- expand.grid(
 
 ## Spread the simulation on our grid of parameter ranges. raw output is a tbl
 ## of histories of every run:
+plan(multiprocess)
+cat("Started: ")
+date()
 simulate_range <- function(params, card_deck, rare_feature){
-  out_raw_skewed_large <- pmap(params,
+  out_raw_skewed_large <- lpmap(params,
                                function(run, error_E, error_R, error_P) {
                                  if( run %% RUNS == 0) cat(".")
                                  PARAMETERS$E <- error_E
@@ -383,6 +387,9 @@ cat("card set 3/4...\n")
 out_raw_skewed_small <- simulate_range(sim_params, POP_SKEWED_SMALL, "A")
 cat("card set 4/4...\n")
 out_raw_even_small   <- simulate_range(sim_params, POP_EVEN_SMALL, "none")
+
+cat("Finished: ")
+date()
 
 ## save copy of the simulation dataset for safety:
 write.table("rdata/simulation_data.RData")
@@ -552,7 +559,7 @@ plot_even_large <- outcomes_even_large %>%
 (plot_even_small | plot_skewed_small) / (plot_even_large | plot_skewed_large)
 
 ## save as PDF:
-plot_file_name <- paste0("plot/outcomes_",
+plot_file_name <- paste0("plots/outcomes_",
                          Sys.Date() %>% str_replace_all("-", ""),
                          "_",
                          format(Sys.time(), "%X") %>% str_replace_all(":", ""),
