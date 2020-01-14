@@ -1,0 +1,300 @@
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(tidyverse)
+library(readxl)
+library(lubridate)
+
+theme_set(theme_classic(base_size = 12) +
+            theme(plot.background = element_rect(fill = "#eeeeee"),
+                  strip.background = element_rect(color = NA),
+                  legend.background = element_rect(fill = NA)))
+
+
+transcript <- read_excel("../data/arg2 transcript.xlsx",
+                         na = "na")[-1,][1:297,] %>%
+  select(
+    subject,
+    card_no,
+    rare,
+    move,
+    irrelevant,
+    risky
+  ) %>%
+  transmute(
+    subject = as.integer(subject),
+    card_no = as.integer(card_no),
+    condition = as.factor(rare),
+    condition = fct_recode(condition,
+                           skewed = "arms",
+                           even = "none"),
+    move = as.factor(move),
+    irrelevant = irrelevant == "true",
+    risky = risky == "true"
+  )
+
+subjects <- read_excel("../data/arg2 participants.xlsx") %>%
+  select(
+    subject,
+    dob,
+    date,
+    condition,
+    drop
+  ) %>%
+  mutate(
+    subject = as.integer(subject),
+    condition = as.factor(condition),
+    dob = ymd(dob),
+    date = ymd(date),
+    age = as.numeric(date - dob) / 365.25,
+    drop = as.logical(drop)
+  ) %>%
+  ## remove dropouts:
+  filter(is.na(drop)) %>%
+  select(-drop)
+
+trans_sum <- transcript %>%
+  group_by(subject, condition) %>%
+  summarize(
+    cards = max(card_no),
+    irrelevant_n = sum(!is.na(irrelevant)),
+    irrelevant = sum(irrelevant, na.rm = TRUE),
+    risky_n = sum(!is.na(risky)),
+    risky = sum(risky, na.rm = TRUE)
+  ) %>%
+  ungroup
+
+d <- subjects %>%
+  left_join(trans_sum,
+            by = "subject") %>%
+  mutate(condition = condition.x,
+         condition.x = NULL,
+         condition.y = NULL)
+
+
+## add 1 to all for useful beta curves (HACK):
+#d[,6:9] <- d[,6:9] + 1
+```
+
+# Irrelevant information
+
+This plot shows one point per child. It indicates the probability, when given the possibility to query irrelevant information (arms when you already have a thrower, same for legs), that children select the irrelevant cue.
+Chance level is .5, anything above would be surprising.
+I would already start to recognize a trend that older kids (except one outlier) are quite disciplined about this.
+The size of the points indicates how many times this child was faced with the option of acquiring irrelevant information.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(d,
+       aes(x = age,
+           y = 1 - (irrelevant/irrelevant_n),
+           size = irrelevant_n)) +
+  geom_point(color = "#d00a55",
+             alpha = .5) +
+  geom_rug(size = 1, sides = "b", color = "#d00a55") +
+  scale_y_continuous(limits = c(0, 1), breaks = c(0, .5, .75, 1), labels = c("0", ".50", ".75", "1")) +
+  labs(size = "no. decisions", x = "Age", y = "proportion relevant information choices") +
+  theme(legend.position = c(.9, .3),
+        legend.background = element_rect(fill = "grey90"))
+ggsave("../plots/pilot_relevant_points_N26.pdf", width = 15, height = 10, units = "cm", dpi = 600)
+```
+
+# Risky choices
+
+In the Skewed Condition, long arms were rare.
+This plot shows how likely kids were in this condition to risk losing a valuable long-arm monster. This could be either by assigning a monster with unknown arms and long legs to the jumper slot, or discarding it while arms were unknown. Technically, it would also count as risky when arms were not only unkown but actually known to be long, but so far, when kids saw long arms, they all made no mistake in the skewed condition.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(d,
+       aes(x = age,
+           y = 1 - risky/risky_n,
+           size = risky_n)) +
+  geom_point(color = "#d00a55",
+             alpha = .5) +
+  geom_rug(size = 1, sides = "b", color = "#d00a55") +
+  scale_y_continuous(limits = c(0, 1), breaks = c(0, .5, .75, 1), labels = c("0", ".50", ".75", "1")) +
+  labs(size = "no. decisions", x = "Age", y = "proportion risk-avoidant decisions") +
+  theme(legend.position = c(.9, .3),
+        legend.background = element_rect(fill = "grey90"))
+ggsave("../plots/pilot_risky_points_N26.pdf", width = 15, height = 10, units = "cm", dpi = 600)
+```
+
+# Degrees of belief
+
+The following two plots express the same data as posterior distributions of our degrees of belief about children's probability to make an irrelevant or risky choice.
+For that, I put kids into 4 age groups and within each, I summed how often these kids were faced with an irrelevant-information or risk-of-losing-long-arms decision, and their responses to it.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+## assign manual age groups (HACK):
+d <- d %>%
+  mutate(agegroup = case_when(
+    age < 5 ~ "3-5",
+    age >= 5 & age < 6 ~ "5-6",
+    age >= 6 & age < 7 ~ "6-7",
+    age > 7 ~ "7-10"
+  ))
+
+dbetasim <- d %>% 
+  group_by(agegroup) %>% 
+  summarize(
+  irrelevant_n = sum(irrelevant_n),
+  irrelevant = sum(irrelevant),
+  risky_n = sum(risky_n),
+  risky = sum(risky)
+  )
+
+sim_relevance <- pmap(dbetasim, ~ rbeta(n = 1e4, shape1 = ..3, shape2 = ..2 - ..3))
+names(sim_relevance) <- dbetasim$agegroup
+sim_relevance[[1]] <- 1 - sim_relevance[[1]]
+sim_relevance[[2]] <- 1 - sim_relevance[[2]]
+sim_relevance[[3]] <- 1 - sim_relevance[[3]]
+sim_relevance[[4]] <- 1 - sim_relevance[[4]]
+
+sim_risk <- pmap(dbetasim, ~ rbeta(n = 1e4, shape1 = ..5, shape2 = ..4 - ..5))
+names(sim_risk) <- dbetasim$agegroup
+sim_risk[[1]] <- 1 - sim_risk[[1]]
+sim_risk[[2]] <- 1 - sim_risk[[2]]
+sim_risk[[3]] <- 1 - sim_risk[[3]]
+sim_risk[[4]] <- 1 - sim_risk[[4]]
+
+xsim_relevance <- sim_relevance %>% 
+  as_tibble %>% 
+  pivot_longer(cols = 1:4,
+               names_to = "agegroup") %>% 
+  mutate(variable = "P(irrelevant)")
+
+xsim_risk <- sim_risk %>% 
+  as_tibble %>% 
+  pivot_longer(cols = 1:4,
+               names_to = "agegroup") %>% 
+  mutate(variable = "P(risky)")
+
+ggplot(xsim_relevance,
+       aes(x = agegroup,
+           y = value)) +
+  geom_violin(fill = "#d00a55",
+              alpha = .4,
+              color = "#d00a55") +
+  geom_text(data = dbetasim,
+            aes(label = paste("N=", irrelevant_n, "\nobservations"),
+                y = .98),
+            size = 3.5) +
+  scale_y_continuous(limits = c(0, 1), breaks = c(0, .25, .5, .75, 1), labels = c("0", ".25", ".50", ".75", "1")) +
+  labs(x = "Age group", y = "P(choose relevant information)")
+ggsave("../plots/pilot_relevant_violin_N26.pdf", width = 15, height = 10, units = "cm", dpi = 600)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(xsim_risk,
+       aes(x = agegroup,
+           y = value)) +
+  geom_violin(fill = "#d00a55",
+              alpha = .4,
+              color = "#d00a55") +
+  geom_text(data = dbetasim,
+            aes(label = paste("N=", risky_n),
+                y = .98)) +
+  scale_y_continuous(limits = c(0, 1), breaks = c(0, .25, .5, .75, 1), labels = c("0", ".25", ".50", ".75", "1")) +
+  labs(x = "Age group", y = "P(avoid risky option)")
+ggsave("../plots/pilot_risky_violin_N26.pdf", width = 15, height = 10, units = "cm", dpi = 600)
+```
+
+# First choice
+
+```{r}
+first_moves <- transcript %>% 
+  group_by(subject, condition) %>% 
+  summarize(first_move = move[1]) %>% 
+  left_join(subjects, by = "subject") %>% 
+  mutate(condition = condition.x) %>% 
+  select(-c(condition.x, condition.y, dob, date))
+
+table(first_moves$correct_first)
+```
+
+
+# Per-card first choices while arms slot open
+```{r}
+## fmpc: first moves per card
+fmpc <- transcript %>% 
+  mutate(counter = 1:nrow(transcript)) %>% 
+  group_by(subject, card_no) %>% 
+  ## mark first move per card:
+  mutate(first_within_card = counter == min(counter),
+         counter = NULL) %>%
+  ungroup %>% 
+  ## mark if assignArm has occurred:
+  group_by(subject) %>% 
+  mutate(A_full = cumsum(move == "aA") != 0) %>% 
+  ungroup %>%
+  ## filter to first moves within each card where A slot is empty:
+  filter(A_full == FALSE,
+         first_within_card == TRUE) %>%
+  select(-c(A_full, first_within_card)) #%>% 
+  
+fmpc_sum <- fmpc %>% 
+  group_by(subject, condition) %>% 
+  summarize(no_firsts = length(move),
+            first_arm = sum(move == "qA")) %>% 
+  ungroup %>% 
+  group_by(subject, condition) %>% 
+  summarize(first_obs = sum(no_firsts),
+            first_arms = sum(first_arm)) %>% 
+  ungroup
+
+fmpc_plot <- fmpc_sum %>%
+  left_join(subjects, by = "subject") %>% 
+  mutate(condition = condition.x,
+         condition.x = NULL, condition.y = NULL, dob = NULL, date = NULL)
+levels(fmpc_plot$condition)[2] <- "uniform"
+
+ggplot(fmpc_plot,
+       aes(x = age,
+           y = first_arms / first_obs,
+           size = first_obs,
+           fill = condition)) +
+  geom_point(shape = 21) +
+  scale_fill_manual(values = c("#d00a55", "#0a55d0")) +
+  scale_y_continuous(breaks = c(0, .25, .5, .75, 1), labels = c("0", ".25", ".5", ".75", "1")) +
+  labs(y = "P(query arms | arms open & first query within card", x = "Age") +
+  guides(first_obs = F)
+
+ggplot(fmpc_plot,
+       aes(x = age,
+           y = first_arms / first_obs,
+           size = first_obs,
+           color = condition)) +
+  geom_point(alpha = .7) +
+  scale_color_manual(values = c("#d00a55", "#0a55d0")) +
+  scale_y_continuous(limits = c(0, 1), breaks = c(0, .25, .5, .75, 1), labels = c("0", ".25", ".50", ".75", "1")) +
+  labs(size = "no. decisions", x = "Age", y = "proportion arm queries when thrower open") +
+  theme(plot.background = element_blank())
+  
+ggsave("../plots/pilot_nonArm_points_N26.pdf", width = 15, height = 10, units = "cm", dpi = 600)
+```
+
+```{r}
+fmpc_sum_labels <- fmpc %>%
+  mutate(dot_pipe = ifelse(move == "qA", "|", ".")) %>% 
+  group_by(subject, condition) %>% 
+  summarize(q_string = str_flatten(dot_pipe)) %>% 
+  ungroup
+
+fmpc_plot_labels <- fmpc_sum_labels %>% 
+  left_join(fmpc_plot, by = "subject") %>% 
+  mutate(condition = condition.y,
+         condition.x = NULL, condition.y = NULL)
+
+ggplot(fmpc_plot_labels,
+       aes(x = age,
+           y = first_arms / first_obs,
+           fill = condition,
+           label = q_string)) +
+  geom_label(alpha = .7,
+             color = "white") +
+  scale_fill_manual(values = c("#d00a55", "#0a55d0")) +
+  scale_y_continuous(breaks = c(0, .25, .5, .75, 1), labels = c("0", ".25", ".5", ".75", "1")) +
+  labs(y = "P(query arms | arms open & first query within card", x = "Age") +
+  guides(first_obs = F)
+ggsave("../plots/pilot_riskySequences.pdf", width = 15, height = 10, units = "cm", dpi = 600)
+```
+
+

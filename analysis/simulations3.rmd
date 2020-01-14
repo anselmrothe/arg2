@@ -569,7 +569,51 @@ plot_file_name <- paste0("plots/outcomes_",
 ggsave(plot_file_name, width = 30, height = 15, units = "in")
 ```
 
+# Prose
 
-ggsave("plots/outcomes_largepop.pdf")
+```{r}
+outcomes_all <- rbind(outcomes_even_large, outcomes_even_small, outcomes_skewed_large, outcomes_skewed_small)
+
+plot_E <- outcomes_all %>% 
+  pivot_longer( both_long:both_missing,
+                names_to = "outcome",
+                values_to = "count" ) %>% 
+  mutate( outcome = fct_relevel(outcome,
+                                "both_missing",
+                                "B_missing",
+                                "A_missing",
+                                "both_short",
+                                "only_B_long",
+                                "only_A_long",
+                                "both_long"
+  )) %>% 
+  ggplot(aes( x = param_E,
+              y = count,
+              fill = outcome )) +
+  geom_col() +
+  colscale +
+  ggtitle("all levels of risk and placement error")
+
+plot_ER <- outcomes_all %>% 
+  pivot_longer( both_long:both_missing,
+                names_to = "outcome",
+                values_to = "count" ) %>% 
+  mutate( outcome = fct_relevel(outcome,
+                                "both_missing",
+                                "B_missing",
+                                "A_missing",
+                                "both_short",
+                                "only_B_long",
+                                "only_A_long",
+                                "both_long"
+  )) %>% 
+  ggplot(aes( x = param_E,
+              y = count,
+              fill = outcome )) +
+  geom_col() +
+  facet_grid(. ~ param_R) +
+  colscale +
+  ggtitle("all levels of risk and placement error")
+
 ```
 
