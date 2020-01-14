@@ -1,0 +1,45 @@
+---
+title: "arg2"
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+```
+```{r functions}
+action <- function(game) {
+  empty <- is.na(game$slots[game$focused_feature])
+  if (empty) {
+    visible <- game$revealed[game$focused_feature]
+    if (visible) {
+      long <- game$monster[game$focused_feature] == 'long'
+      if (long) {
+        game$slots[[game$focused_feature]] <- game$monster
+      }
+    } else {
+        ## query the focused_feature => reveal it
+        game$revealed[game$focused_feature] <- TRUE
+        game$query_counter <- game$query_counter + 1
+        game <- action(game)
+    }
+  }
+  return(game)
+}
+```
+```{r}
+game <- list()
+game$query_counter <- 0
+game$slots <- list(A = NA, B = NA)
+game$monster <- c(A = 'long', B = 'short')
+game$revealed <- c(A = FALSE, B = FALSE)
+game$focused_feature <- sample(c('A', 'B'), 1)
+game <- action(game)
+if (game$focused_feature == 'A') {
+  game$focused_feature <- 'B'
+} else {
+  game$focused_feature <- 'A'
+}
+game <- action(game)
+game$slots
+game$query_counter
+```
+
