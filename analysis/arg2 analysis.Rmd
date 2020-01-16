@@ -3,13 +3,14 @@
 library(tidyverse)
 library(readxl)
 library(lubridate)
+library(patchwork)
 
-theme_set(theme_classic(base_size = 12) +
-            theme(plot.background = element_rect(fill = "#eeeeee"),
+theme_set(theme_classic(base_size = 6) +
+            theme(plot.background = element_rect(fill = NA, color = NA),
                   strip.background = element_rect(color = NA),
                   legend.background = element_rect(fill = NA)))
 
-
+## load transcript data:
 transcript <- read_excel("../data/arg2 transcript.xlsx",
                          na = "na")[-1,][1:297,] %>%
   select(
@@ -32,6 +33,7 @@ transcript <- read_excel("../data/arg2 transcript.xlsx",
     risky = risky == "true"
   )
 
+## load subject data:
 subjects <- read_excel("../data/arg2 participants.xlsx") %>%
   select(
     subject,
@@ -52,27 +54,33 @@ subjects <- read_excel("../data/arg2 participants.xlsx") %>%
   filter(is.na(drop)) %>%
   select(-drop)
 
+## summarize transcript data to a per-subject form:
 trans_sum <- transcript %>%
   group_by(subject, condition) %>%
   summarize(
     cards = max(card_no),
-    irrelevant_n = sum(!is.na(irrelevant)),
+    ## how often was an irrelevant action available to the subject?
+    relevance_related = sum(!is.na(irrelevant)),
     irrelevant = sum(irrelevant, na.rm = TRUE),
-    risky_n = sum(!is.na(risky)),
-    risky = sum(risky, na.rm = TRUE)
+    relevant = relevance_related - irrelevant, ## how often was it chosen?
+    ## same for risky actions:
+    risk_related = sum(!is.na(risky)),
+    risky = sum(risky, na.rm = TRUE),
+    non_risky = risk_related - risky
   ) %>%
   ungroup
 
+## joint subject and summarized transcript data:
 d <- subjects %>%
   left_join(trans_sum,
             by = "subject") %>%
   mutate(condition = condition.x,
          condition.x = NULL,
-         condition.y = NULL)
+         condition.y = NULL,
+         dob = NULL,
+         date = NULL)
 
-
-## add 1 to all for useful beta curves (HACK):
-#d[,6:9] <- d[,6:9] + 1
+head(d)
 ```
 
 # Irrelevant information
@@ -83,18 +91,20 @@ I would already start to recognize a trend that older kids (except one outlier) 
 The size of the points indicates how many times this child was faced with the option of acquiring irrelevant information.
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(d,
-       aes(x = age,
-           y = 1 - (irrelevant/irrelevant_n),
-           size = irrelevant_n)) +
+gg_relevance <- ggplot(d %>% filter(relevance_related > 0),
+                      aes(x = age,
+                          y = relevant/relevance_related,
+                          size = relevance_related)) +
+  geom_abline(intercept = .5, slope = 0, linetype = "8414", alpha = .3, size = 1) +
   geom_point(color = "#d00a55",
              alpha = .5) +
   geom_rug(size = 1, sides = "b", color = "#d00a55") +
-  scale_y_continuous(limits = c(0, 1), breaks = c(0, .5, .75, 1), labels = c("0", ".50", ".75", "1")) +
-  labs(size = "no. decisions", x = "Age", y = "proportion relevant information choices") +
+  scale_y_continuous(limits = c(0, 1)) +
+  labs(size = "No. decisions", x = "Age", y = "Proportion relevant information choices") +
   theme(legend.position = c(.9, .3),
-        legend.background = element_rect(fill = "grey90"))
-ggsave("../plots/pilot_relevant_points_N26.pdf", width = 15, height = 10, units = "cm", dpi = 600)
+        legend.background = element_rect(color = "grey70"))
+ggsave(plot = gg_relevance, filename = "plots/pilot_relevant_points_N26.pdf", width = 15, height = 10, units = "cm", dpi = 600)
+gg_relevance
 ```
 
 # Risky choices
@@ -103,18 +113,20 @@ In the Skewed Condition, long arms were rare.
 This plot shows how likely kids were in this condition to risk losing a valuable long-arm monster. This could be either by assigning a monster with unknown arms and long legs to the jumper slot, or discarding it while arms were unknown. Technically, it would also count as risky when arms were not only unkown but actually known to be long, but so far, when kids saw long arms, they all made no mistake in the skewed condition.
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot(d,
-       aes(x = age,
-           y = 1 - risky/risky_n,
-           size = risky_n)) +
+gg_risk <- ggplot(d %>% filter(risk_related > 0),
+                  aes(x = age,
+                      y = non_risky/risk_related,
+                      size = risk_related)) +
+  geom_abline(intercept = .5, slope = 0, linetype = "8414", alpha = .3, size = 1) +
   geom_point(color = "#d00a55",
              alpha = .5) +
   geom_rug(size = 1, sides = "b", color = "#d00a55") +
-  scale_y_continuous(limits = c(0, 1), breaks = c(0, .5, .75, 1), labels = c("0", ".50", ".75", "1")) +
-  labs(size = "no. decisions", x = "Age", y = "proportion risk-avoidant decisions") +
-  theme(legend.position = c(.9, .3),
-        legend.background = element_rect(fill = "grey90"))
-ggsave("../plots/pilot_risky_points_N26.pdf", width = 15, height = 10, units = "cm", dpi = 600)
+  scale_y_continuous(limits = c(0, 1)) +
+  labs(size = "No. decisions", x = "Age", y = "Proportion risk-avoidant decisions") +
+  theme(legend.position = c(.9, .26),
+        legend.background = element_rect(color = "grey70"))
+ggsave(plot = gg_risk, filename = "plots/pilot_risky_points_N26.pdf", width = 15, height = 10, units = "cm", dpi = 600)
+gg_risk
 ```
 
 # Degrees of belief
@@ -179,7 +191,7 @@ ggplot(xsim_relevance,
             size = 3.5) +
   scale_y_continuous(limits = c(0, 1), breaks = c(0, .25, .5, .75, 1), labels = c("0", ".25", ".50", ".75", "1")) +
   labs(x = "Age group", y = "P(choose relevant information)")
-ggsave("../plots/pilot_relevant_violin_N26.pdf", width = 15, height = 10, units = "cm", dpi = 600)
+ggsave("plots/pilot_relevant_violin_N26.pdf", width = 15, height = 10, units = "cm", dpi = 600)
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
@@ -289,12 +301,53 @@ ggplot(fmpc_plot_labels,
            fill = condition,
            label = q_string)) +
   geom_label(alpha = .7,
-             color = "white") +
+             color = "white",
+             size = 2) +
   scale_fill_manual(values = c("#d00a55", "#0a55d0")) +
   scale_y_continuous(breaks = c(0, .25, .5, .75, 1), labels = c("0", ".25", ".5", ".75", "1")) +
-  labs(y = "P(query arms | arms open & first query within card", x = "Age") +
+  labs(y = "P(query arms | arms open & first query within card)", x = "Age") +
   guides(first_obs = F)
-ggsave("../plots/pilot_riskySequences.pdf", width = 15, height = 10, units = "cm", dpi = 600)
+ggsave("plots/pilot_riskySequences.pdf", width = 15, height = 10, units = "cm", dpi = 600)
 ```
 
+
+# Plots for CogSci
+
+```{r}
+plot_double <- d %>%
+  select(-c(irrelevant, risky)) %>% 
+  pivot_longer(c(relevance_related:non_risky)) %>% 
+  mutate(aspect = as.factor(name),
+         name = NULL,
+         aspect = fct_collapse(aspect,
+                               relevance = c("relevance_related", "relevant"),
+                               risk = c("risk_related", "non_risky")),
+         variable = rep(c("total", "committed"), length.out = n() )) %>% 
+  pivot_wider(names_from = variable, values_from = value)
+
+head(plot_double)
+```
+
+```{r}
+levels(plot_double$aspect) <- c("Risk-avoidance", "Relevance-seeking")
+
+gg_double <- ggplot(plot_double,
+                    aes(x = age,
+                        y = committed/total,
+                        size = total)) +
+  geom_abline(intercept = .5, slope = 0, linetype = "8414", alpha = .3, size = 1) +
+  geom_point(fill = "#d00a55",
+             alpha = .3,
+             shape = 21) +
+  geom_point(color = "black",
+             shape = 1) +
+  #geom_rug(size = 1, sides = "b", color = "#d00a55") +
+  scale_y_continuous(limits = c(0, 1)) +
+  facet_grid(. ~ aspect) +
+  labs(size = "No. of\ndecisions", x = "Age", y = "Proportion adaptive information choices") +
+  theme(panel.background = element_rect(color = "grey70"))
+
+ggsave(plot = gg_double, filename = "plots/cogsci_arg2.pdf", width = 18, height = 6, units = "cm", dpi = 600)
+gg_double
+```
 
