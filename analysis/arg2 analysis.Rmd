@@ -5,7 +5,7 @@ library(readxl)
 library(lubridate)
 library(patchwork)
 
-theme_set(theme_classic(base_size = 6) +
+theme_set(theme_classic(base_size = 8) +
             theme(plot.background = element_rect(fill = NA, color = NA),
                   strip.background = element_rect(color = NA),
                   legend.background = element_rect(fill = NA)))
@@ -75,7 +75,7 @@ transcript_evaluated <- transcript %>%
 Summarize each type of error and "omission of errors" for each participant.
 
 ```{r}
-pctcp_scores <- transcript_evaluated %>% 
+ptcp_scores <- transcript_evaluated %>% 
   group_by(subject) %>% 
   summarize( relevance_related = sum(alt_irrel),
              irrelevant        = sum(str_detect(evaluation, "irrel")),
@@ -90,3 +90,50 @@ pctcp_scores <- transcript_evaluated %>%
              risk_sens     = risk_related - risk_insens )
 ```
 
+Join transcription codes with subject data.
+
+```{r}
+d <- subjects %>% 
+  left_join(ptcp_scores, by = "subject") %>% 
+  select( -c(dob, date) )
+```
+
+
+```{r}
+plot_triptych <- d %>%
+  select( -c(irrelevant, risk_insens, cost_wasting) ) %>% 
+  pivot_longer( c(relevance_related:risk_sens) ) %>% 
+  mutate(aspect = as.factor(name),
+         name = NULL,
+         aspect = fct_collapse( aspect,
+                                relevance = c("relevance_related", "relevant"),
+                                risk = c("risk_related", "risk_sens"),
+                                cost = c("cost_related", "cost_saving") ),
+         variable = rep(c("N", "count"), length.out = n() )) %>% 
+  pivot_wider(names_from = variable, values_from = value)
+
+head(plot_triptych)
+```
+
+```{r}
+levels(plot_triptych$aspect) <- c("Cost-effectiveness", "Risk-avoidance", "Relevance-seeking")
+
+gg_triptych <- ggplot(plot_triptych,
+                      aes(x = age,
+                          y = count / N,
+                          size = N)) +
+  geom_abline(intercept = .5, slope = 0, linetype = "8414", alpha = .3, size = 1) +
+  geom_point(fill = "#d00a55",
+             alpha = .3,
+             shape = 21) +
+  geom_point(color = "black",
+             shape = 1) +
+  #geom_rug(size = 1, sides = "b", color = "#d00a55") +
+  scale_y_continuous(limits = c(0, 1)) +
+  facet_grid(. ~ aspect) +
+  labs(size = "No. of\ndecisions", x = "Age", y = "Proportion adaptive information choices") +
+  theme(panel.background = element_rect(color = "grey70"))
+
+ggsave(plot = gg_triptych, filename = "plots/cogsci_arg2.pdf", width = 18, height = 6, units = "cm", dpi = 600)
+gg_triptych
+```
