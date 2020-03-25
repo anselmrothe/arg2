@@ -40,3 +40,4 @@ rsconnect/
 analysis/plots/
 data/arg2\ participants.xlsx
 material/blender/output/
+*.blend1
